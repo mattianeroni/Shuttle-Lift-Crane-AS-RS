@@ -10,7 +10,10 @@ def source (simtime, avgArrival, depots, kinds, codes, quantities):
     while t < simtime:
         t += random.expovariate(1 / avgArrival)
         code, length = select(codes)
-        yield Job(t, select(depots), select(kinds), code, length, select(quantities))
+        k = select(kinds)
+        depot = select(depots[kind.INPUT]) if k == kind.INPUT else select(depots[kind.OUTPUT])
+        qty = select(quantities)
+        yield Job(t, depot, k, code, length, qty)
 
 
 def single_job (depots, codes, quantities):

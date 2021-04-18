@@ -4,10 +4,11 @@ import collections
 
 class Location (object):
 
-    def __init__(self, position, size):
+    def __init__(self, position, spaces, size):
         self.position = np.asarray(position)
-        self.length, self.deep = size
-        self.space = np.zeros(size)
+        self.length, self.deep = spaces
+        self.size = size
+        self.space = np.zeros(spaces)
         self.codes = collections.defaultdict(lambda: 0)
         self.frozen = False
 
@@ -37,7 +38,7 @@ class Location (object):
                 if (space[i-length:i, :] * bundle).sum() == 0:
                     space[i-length:i, :] = bundle
                     self.codes[code] += 1
-                    job.destination = self.position + np.asarray([0,0,length/2 + i-length])
+                    job.destination = self.position + np.asarray([0,0,(length/2 + i-length) * self.size])
                     return True
         elif deep == 1:
             for i in range(length, self.length + 1):
@@ -48,7 +49,7 @@ class Location (object):
                         space[i-length:i, 1:] = bundle
 
                     self.codes[code] += 1
-                    job.destination = self.position + np.asarray([0,0,length/2 + i-length])
+                    job.destination = self.position + np.asarray([0,0,(length/2 + i-length) * self.size])
                     return True
 
         return False
@@ -67,20 +68,20 @@ class Location (object):
                 if np.array_equal(space[i - length:i, :], bundle):
                     space[i - length:i, :] = np.zeros(bundle.shape)
                     self.codes[code] -= 1
-                    job.destination = self.position + np.asarray([0, 0, length / 2 + i - length])
+                    job.destination = self.position + np.asarray([0,0,(length/2 + i-length) * self.size])
                     return True
         elif deep == 1:
             for i in range(length, self.length + 1):
                 if np.array_equal(space[i - length:i, 1:], bundle):
                     space[i - length:i, 1:] = np.zeros(bundle.shape)
                     self.codes[code] -= 1
-                    job.destination = self.position + np.asarray([0, 0, length / 2 + i - length])
+                    job.destination = self.position + np.asarray([0,0,(length/2 + i-length) * self.size])
                     return True
 
                 if space[i - length:i, 1].sum() == 0 and np.array_equal(space[i - length:i, :1], bundle):
                     space[i - length:i, :1] = np.zeros(bundle.shape)
                     self.codes[code] -= 1
-                    job.destination = self.position + np.asarray([0,0,length/2 + i-length])
+                    job.destination = self.position + np.asarray([0,0,(length/2 + i-length) * self.size])
                     return True
 
         return False
@@ -90,11 +91,11 @@ class Location (object):
 
 class Rack (object):
 
-    def __init__(self, *, corridors, levels, corridor_size, level_size, position, location_size, crane, lifts):
+    def __init__(self, *, corridors, levels, corridor_size, level_size, position, location_spaces, location_size, crane, lifts):
         self.crane = crane
         self.lifts = lifts
         self.position = np.asarray(position)
-        self.locations = tuple(Location([x*corridor_size, y*level_size, position[2]], location_size)
+        self.locations = tuple(Location([x*corridor_size, y*level_size, position[2]], location_spaces, location_size)
                                       for y in range(levels)
                                     for x in range(corridors)
                                  for _ in range(2))

@@ -33,16 +33,17 @@ class Simulation (object):
         while filling / capacity < percentage:
             rack = random.choice(list(self.racks))
             loc = random.choice(list(rack.locations))
-            job = source.single_job(self.depots_prob, self.codes_prob, self.quantities_prob)
+            job = source.single_job(self.depots_prob[kind.INPUT], self.codes_prob, self.quantities_prob)
             if loc.place(job):
                 filling += job.length * job.quantity
 
 
     def __call__ (self, simtime, avgArrival):
         env = self.env
-        for job in source.source(simtime, avgArrival, self.depots_prob, self.kinds_prob, self.codes_prob, self.quantities_prob):
+        jobs = source.source(simtime, avgArrival, self.depots_prob, self.kinds_prob, self.codes_prob, self.quantities_prob)
+        for job in jobs:
             yield env.timeout(max(0, job.arrival - env.now))
-            yield env.process (self.execute(job))
+            env.process (self.execute(job))
 
 
     def getRack (self, job, position):
@@ -62,7 +63,7 @@ class Simulation (object):
         env = self.env
         shuttle = self.shuttles[job.depot]
         depot = self.depots[job.depot]
-        rack, location = self.getRack(job, (keyPos := self.racks[0].lifts[job.depot].up))
+        rack, location = self.getRack(job, self.racks[0].lifts[job.depot].up)
         job.history[START] = int(env.now)
 
         if location is None:
@@ -73,15 +74,15 @@ class Simulation (object):
             crane = rack.crane
             location.frozen = True
             if job.kind == kind.INPUT:
-                yield (reqs := shuttle.request(priority.NORMAL, preempt=False))
+                yield (reqs := shuttle.request(priority=priority.NORMAL, preempt=False))
                 yield env.process(shuttle.move(depot.position))
-                reql = lift.request(priority.NORMAL, preempt=False)
+                reql = lift.request(priority=priority.NORMAL, preempt=False)
                 lift_preparation = env.process(lift.prepare(lift.down, reql))
                 yield env.timeout(self.uploadTime)
                 depot.pop(env.now)
                 yield env.process(shuttle.move(lift.down))
                 yield lift_preparation
-                reqc = crane.request(priority.NORMAL, preempt=False)
+                reqc = crane.request(priority=priority.NORMAL, preempt=False)
                 crane_preparation = env.process(crane.prepareIn(lift.up, reqc))
                 yield env.timeout(self.uploadTime)
                 shuttle.release(reqs)
@@ -94,13 +95,13 @@ class Simulation (object):
                 location.frozen = False
 
             elif job.kind == kind.OUTPUT:
-                yield (reqc := crane.request(priority.NORMAL, preempt=False))
-                reql = lift.request(priority.NORMAL, preempt=False)
+                yield (reqc := crane.request(priority=priority.NORMAL, preempt=False))
+                reql = lift.request(priority=priority.NORMAL, preempt=False)
                 lift_preparation = env.process(lift.prepare(lift.up, reql))
                 yield env.process(crane.takeOut(lift.up, job, self.uploadTime))
                 location.frozen = False
                 yield lift_preparation
-                reqs = shuttle.request(priority.NORMAL, preempt=False)
+                reqs = shuttle.request(priority=priority.NORMAL, preempt=False)
                 shuttle_prepare = env.process(shuttle.prepare(lift.down, reqs))
                 yield env.timeout(self.uploadTime)
                 crane.release(reqc)
