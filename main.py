@@ -8,7 +8,7 @@ import matt99
 from matt99 import INPUT, OUTPUT
 import simpy
 
-
+"""
 app = dash.Dash(__name__, serve_locally=True)
 app.title = "Matt99"
 
@@ -95,4 +95,3 @@ if __name__ == "__main__":
     for job in sim.done:
         print(job.kind, job.arrival, " - ", job.history["END"] - job.history["START"])
 
-"""
