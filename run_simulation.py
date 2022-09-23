@@ -17,13 +17,10 @@ Author's website: https://mattianeroni.github.io
 
 %%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%%
 """
-import algorithm
-
-from asrs.source import source, Code 
+import simpy 
+import asrs
 from asrs.kind import INPUT, OUTPUT
-
-
-import functools 
+from asrs.source import source, Code
 
 
 if __name__ == "__main__":
@@ -32,8 +29,6 @@ if __name__ == "__main__":
     initFilling = 0.5
     avgArrival = 120
     maxJobs = float("inf")
-    Br_mu, Br_std = 0.7, 0.05 
-    Bb_mu, Bb_std = 0.9, 0.05
 
     depot_prob = { INPUT : {0 : 0.25,  2 : 0.25}, OUTPUT : {1 : 0.25, 3 : 0.25} }
     kind_prob = {INPUT : 0.5, OUTPUT : 0.5}
@@ -41,7 +36,7 @@ if __name__ == "__main__":
     quantity_prob = {INPUT : {1 : 0.5, 2 : 0.5}, OUTPUT : {1 : 0.5, 2 : 0.5}}
     quality_prob = {INPUT : {1 : 0.33, 2 : 0.33, 3 : 0.34}, OUTPUT : {1 : 0.33, 2 : 0.33, 3 : 0.34}}
 
-    jobs = tuple(source(
+    jobs = source(
         simTime=simTime, 
         maxJobs=maxJobs,
         avgArrival=avgArrival, 
@@ -50,18 +45,34 @@ if __name__ == "__main__":
         quantity_prob=quantity_prob,
         quality_prob=quality_prob,
         kind_prob=kind_prob,
-    ))
-
-    makespan = algorithm.heuristic(
-        jobs=jobs, 
-        Br_generator=functools.partial(algorithm.utils.normaldist, mu=Br_mu, sigma=Br_std), 
-        Bb_generator=functools.partial(algorithm.utils.normaldist, mu=Bb_mu, sigma=Bb_std), 
-        code_prob=code_prob, 
-        depot_prob=depot_prob, 
-        quantity_prob=quantity_prob, 
-        quality_prob=quality_prob, 
-        initFilling=initFilling
     )
 
+    env = simpy.Environment()
 
-    print("The makespan is: ", int(makespan))
+    sim = asrs.Simulation(
+        env,
+        shuttles = tuple(asrs.Shuttle(env, 2.0, 0.5, (i*30, 0, 0)) for i in range(4)),
+        racks = tuple(asrs.Rack(ncorridors=30, nlevels=10, corridor_size=4, level_size=1,
+            position=(0, 0, i*12), nshelves=6, shelves_deep=2, shelves_size=2, 
+            crane=asrs.Crane(env, (1.3,1.3,1.3), (0.3,0.3,0.3), (0,10,i*12)),
+            lifts=tuple(asrs.Lift(env, 0.6, 0.3, (j*30, 0, i*12), (j*30, 10, i*12), (j*30, 0, i*12)) for j in range(4))
+        )
+        for i in range(3)),
+        depots = tuple(asrs.Depot((i*30, 0, 0)) for i in range(4)),
+        uploadTime = 20.0
+    )
+
+    sim.warmup (
+        percentage=initFilling,
+        code_prob=code_prob,
+        depot_prob=depot_prob,
+        quantity_prob=quantity_prob,
+        quality_prob=quality_prob,
+    )
+
+    env.process(sim(jobs))
+    env.run()
+
+
+    for job in sim.done:
+        print(job.kind, job.arrival, " - ", job.history["END"] - job.history["START"])
